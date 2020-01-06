@@ -1,41 +1,40 @@
 package com.supimon.recommendationsservice.resource;
 
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.*;
+import com.google.firebase.cloud.FirestoreClient;
 import com.supimon.recommendationsservice.models.RecommendationModel;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 @RestController
 @RequestMapping("/recommendations")
 public class RecommendationService {
 
     @RequestMapping("/{chefId}")
-    public int getRecommendations(@PathVariable("chefId") String chefId) throws IOException {
+    public Long getRecommendations(@PathVariable("chefId") String chefId) throws InterruptedException, ExecutionException {
 
-        FileInputStream serviceAccount =
-                new FileInputStream("src/main/resources/chefapp-eeae0-firebase-adminsdk-tujtr-198a71e00a.json");
+        Firestore db = FirestoreClient.getFirestore();
 
-        FirebaseOptions options = new FirebaseOptions.Builder()
-                .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                .setDatabaseUrl("https://chefapp-eeae0.firebaseio.com")
-                .build();
+        CollectionReference chefRecomm = db.collection("recommendations");
+        // Create a query against the collection.
+        Query query = chefRecomm.whereEqualTo("chefId", chefId);
 
-        FirebaseApp.initializeApp(options);
+        ApiFuture<QuerySnapshot> querySnapshot = query.get();
 
-        return getAllRecommendations(chefId).size();
-    }
+        List<QueryDocumentSnapshot> documents = querySnapshot.get().getDocuments();
 
-    private List<RecommendationModel> getAllRecommendations(String chefId){
-        return Collections.singletonList(
-          new RecommendationModel("EMP23")
-        );
+        RecommendationModel recommendationModel = new RecommendationModel();
+
+        for (QueryDocumentSnapshot document : documents) {
+            recommendationModel.setUserId(document.getString("chefId"));
+            recommendationModel.setRecommendations(document.getLong("recommendations"));
+        }
+
+        return recommendationModel.getRecommendations();
     }
 }
